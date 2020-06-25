@@ -4,13 +4,19 @@ use vst2::buffer::AudioBuffer;
 use vst2::plugin::{Plugin, Info};
 
 struct DigiDist {
-    threshold: f32
+    threshold: f32,
+    cutoff: f32,
+    buf0: f32,
+    buf1: f32
 }
 
 impl Default for DigiDist {
     fn default() -> DigiDist {
         DigiDist {
-            threshold: 1.0 // VST parameters are always 0.0 to 1.0
+            threshold: 1.0, // VST parameters are always 0.0 to 1.0
+            cutoff: 1.0,
+            buf0: 0.0,
+            buf1: 0.0
         }
     }
 }
@@ -24,7 +30,7 @@ impl Plugin for DigiDist {
 
             inputs: 2,
             outputs: 2,
-            parameters: 1,
+            parameters: 2,
 
             ..Info::default()
         }
@@ -33,6 +39,7 @@ impl Plugin for DigiDist {
     fn get_parameter(&self, index: i32) -> f32 {
         match index {
             0 => self.threshold,
+            1 => self.cutoff,
             _ => 0.0,
         }
     }
@@ -41,6 +48,7 @@ impl Plugin for DigiDist {
         match index {
             // We don't want to divide by zero, so we'll clamp the value
             0 => self.threshold = value.max(0.01),
+            1 => self.cutoff = value.max(0.01),
             _ => (),
         }
     }
@@ -48,6 +56,7 @@ impl Plugin for DigiDist {
     fn get_parameter_name(&self, index: i32) -> String {
         match index {
             0 => "Threshold".to_string(),
+            1 => "Cutoff".to_string(),
             _ => "".to_string(),
         }
     }
@@ -56,6 +65,7 @@ impl Plugin for DigiDist {
         match index {
             // Convert to a percentage
             0 => format!("{}", self.threshold * 100.0),
+            1 => format!("{}", self.cutoff * 20000.0),
             _ => "".to_string(),
         }
     }
@@ -63,6 +73,7 @@ impl Plugin for DigiDist {
     fn get_parameter_label(&self, index: i32) -> String {
         match index {
             0 => "%".to_string(),
+            1 => "hz".to_string(),
             _ => "".to_string(),
         }
     }
@@ -82,6 +93,9 @@ impl Plugin for DigiDist {
                     *output_sample = input_sample.max(-self.threshold) / self.threshold;
                 }
 
+                self.buf0 += self.cutoff * (*output_sample - self.buf0);
+                self.buf1 += self.cutoff * (self.buf0 - self.buf1);
+                *output_sample = *output_sample - self.buf0;
             }
         }
     }
